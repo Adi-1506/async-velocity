@@ -9,8 +9,10 @@
     "test": "node --test --test-concurrency=1 tests/*.test.js",
     "bootstrap": "node scripts/bootstrap.js",
     "migrate": "node scripts/migrate.js",
+    "preflight": "node scripts/preflight.js",
     "backup": "node scripts/backup.js",
-    "restore": "node scripts/backup.js restore"
+    "restore": "node scripts/backup.js restore",
+    "test:restore": "node scripts/restore-drill.js"
   },
   "keywords": [],
   "author": "",

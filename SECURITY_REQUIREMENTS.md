@@ -15,7 +15,7 @@ This is a web-only team standup application using MongoDB, not a health app or S
 | 9 | Session cookies | Partial: HttpOnly, SameSite=Lax, Secure in production, eight-hour expiry, login rotation and server revocation. No periodic refresh/idle-session rotation. |
 | 10 | Password and recovery security | Partial: bcrypt, hashed single-use expiring tokens, verification and TOTP implemented. Real email delivery remains unconfigured. |
 | 11 | Rate limits | Implemented: shared database counters and IP/account limits. Production thresholds require load testing. |
-| 12 | Bot protection | Partial: optional Turnstile and honeypots on authentication forms. Provider keys and integration testing required; not every recovery action has CAPTCHA. |
+| 12 | Bot protection | Partial: optional Turnstile and honeypots on authentication forms. Provider keys and integration testing required; password reset and MFA recovery are also protected. |
 | 13 | Parameterized queries | Implemented equivalent: structured Mongoose queries, validated inputs and escaped literal search; no SQL. |
 | 14 | Input validation | Partial: server schemas and client form validation implemented; full schema parity for every client form is not claimed. |
 | 15 | Output encoding | Implemented: user content rendered as React text; no rich-text input feature. |
@@ -26,14 +26,14 @@ This is a web-only team standup application using MongoDB, not a health app or S
 | 20 | Dependency scanning | Implemented configuration: pinned versions, lockfiles, npm audit and Dependabot. Current audits report zero known vulnerabilities. |
 | 21 | CSRF | Implemented: allowed Origin plus JSON checks on state changes and SameSite cookies. |
 | 22 | Enumeration resistance | Partial: generic wording, unknown-user password hashing and asynchronous mail. Exact timing equivalence is not guaranteed. |
-| 23 | MFA, passkeys, breached passwords | Partial: TOTP/passkeys and 12-character minimum implemented. Breached-password check must be enabled; recovery codes absent. |
+| 23 | MFA, passkeys, breached passwords | Partial: TOTP/passkeys and 12-character minimum implemented. Hashed one-time recovery codes implemented. Breached-password check must be enabled. |
 | 24 | Session management | Implemented: session listing/revocation, password-change invalidation and reauthentication for sensitive account actions. |
 | 25 | Redirect allowlist | Implemented by fixed application navigation; no arbitrary post-login redirect target accepted. |
 | 26 | Token comparisons and lifecycle | Implemented: hashed random recovery/session tokens, expiring single-use challenges; cryptographic verification delegated to established libraries. |
 | 27 | SSRF | Not applicable to URL importing: no importer or arbitrary URL fetch. Existing provider calls use fixed service URLs. |
 | 28 | Least-privilege database roles | Partial: role/migration scripts provided; roles must be applied and tested on the target database. |
 | 29 | Query limits | Implemented for user-facing lists/search with bounded pages and search time limits; background administrative jobs need production sizing. |
-| 30 | Backup and retention | Partial: encrypted backup/isolated restore tooling and deletion retention implemented. Automation and real restore drill outstanding. |
+| 30 | Backup and retention | Partial: encrypted backup/isolated restore tooling and deletion retention implemented. Daily scheduling template and disposable-database restore drill supplied; real hosting setup and production drill outstanding. |
 | 31 | Audit logs | Partial: authentication/mutation/permission events omit sensitive payloads. Insert-only database role provided; external immutable storage not configured. |
 | 32 | Webhook verification | Not applicable: no webhook integrations. |
 | 33 | Payment idempotency | Not applicable: no payment/subscription processing. |
@@ -46,10 +46,10 @@ This is a web-only team standup application using MongoDB, not a health app or S
 | 40 | Native token storage | Not applicable: web-only. |
 | 41 | Clickjacking and no-store | Implemented in headers/CSP; verify at production edge. |
 | 42 | Supply-chain installation | Partial: exact dependencies, lockfiles and CI npm ci with scripts disabled. Full provenance enforcement not configured. |
-| 43 | SAST and secret scanning | Partial: CodeQL/Gitleaks workflows provided. Remote merge blocking and container scans outstanding. |
+| 43 | SAST and secret scanning | Partial: CodeQL/Gitleaks workflows provided. Container build/scanning workflow added; remote merge blocking outstanding. |
 | 44 | Repository/environment protections | Outstanding: remote branch rules, required reviews, signed commits and separate deployed environments require owner/platform setup. |
 | 45 | Rotation and incidents | Documented in SECURITY.md; operational ownership and notification procedures must be assigned before launch. |
-| 46 | WAF, DNS and disclosure | Outstanding: no provider/domain/security contact supplied. Do not publish a fabricated security.txt contact. |
+| 46 | WAF, DNS and disclosure | Outstanding: no provider/domain/security contact supplied. Configurable security.txt handler implemented. |
 | 47 | Error monitoring | Outstanding: no monitoring service configured. Existing server errors avoid sensitive payloads. |
 | 48 | OWASP assessment | Partial: pre-launch checklist and authorization/security regression tests supplied. Independent ASVS Level 2 assessment not performed. |
 | 49 | Health safety | Not applicable: no calorie, weight-loss, or medical advice functionality. |
@@ -57,11 +57,11 @@ This is a web-only team standup application using MongoDB, not a health app or S
 
 ## Local validation
 
-- Backend: 16 tests pass, including authorization, sessions, input tampering, MFA replay, sockets, scheduler deduplication, tokens, rate limits, passkey challenges, and encrypted archive tampering.
+- Backend: 20 tests pass, including authorization, sessions, input tampering, MFA replay, sockets, scheduler deduplication, tokens, rate limits, passkey challenges, and encrypted archive tampering.
 - Browser: production-build workflow passes for member/admin usage and virtual-authenticator passkey enrollment/login; mobile viewport checked.
 - Frontend lint, type checking and production build pass.
 - Backend and frontend dependency audits report zero known vulnerabilities.
 - Gitleaks source and available Git history scans pass. Local environment files and generated dependencies are excluded from the source scan; this does not certify deployed secrets or external repositories.
-- Live SMTP, Turnstile, container execution, production HTTPS/database roles, and real database backup/restore remain unverified.
+- Live SMTP, Turnstile, production HTTPS/database roles and production backups remain unverified. A real encrypted dump/restore of disposable databases passed locally; container execution is checked by CI.
 
 See [SECURITY.md](SECURITY.md) and [OPERATIONS.md](OPERATIONS.md) for launch requirements and procedures. Repository publication does not deploy the application or activate external production services.

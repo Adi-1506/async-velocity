@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, FormEvent } from "react";
 import Passkeys from "@/components/Passkeys";
+import MfaRecovery from "@/components/MfaRecovery";
 import AccountData from "@/components/AccountData";
 import AppShell from "@/components/AppShell";
 import { useTeam } from "@/context/TeamContext";
@@ -111,6 +112,7 @@ export default function Page() {
       </section>
       <AccountData />
       <Passkeys />
+      {user?.mfaEnabled && <MfaRecovery />}
       <div className="feed-grid">
         <section className="card">
           <h2>Change password</h2>

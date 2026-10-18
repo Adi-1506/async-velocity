@@ -28,11 +28,11 @@
 
 This project has not received an independent penetration test or ASVS Level 2 certification. No claim of compliance is made. Global super administrators intentionally have cross-team access. Reports approximate historical participation using current membership. No health-specific, payment, upload, mobile, or AI controls are applicable to the current product.
 
-MFA recovery codes are not implemented: retain a secure authenticator backup or a separately registered passkey. Password-based sensitive actions still require a valid authenticator code when MFA is enabled.
+MFA recovery codes are implemented as ten random 128-bit codes stored only as hashes. Generating a replacement set requires password and authenticator reauthentication. Recovery requires the password and one unused code, atomically disables MFA, invalidates all codes and revokes sessions. Re-enroll MFA after recovery. Password-based sensitive actions otherwise require a valid authenticator code when MFA is enabled.
 
 Email response wording is generic and unknown-user password comparisons run bcrypt. Exact timing indistinguishability across database/provider conditions is not guaranteed. Mail delivery runs asynchronously to avoid exposing provider delivery time in account lookup responses.
 
-Bot protection and email integrations must be tested with real provider credentials. Full backup/restore and least-privilege roles must be verified in the target environment. Container images must be pinned by digest and scanned in the deployment pipeline before release.
+Bot protection and email integrations must be tested with real provider credentials. Encrypted backup/restore has passed a disposable-database drill, but production restore and least-privilege roles must still be verified in the target environment. Container images are pinned by digest and a build/vulnerability-scan workflow is configured; review its results before release.
 
 ## Pre-launch test checklist
 
@@ -60,7 +60,7 @@ Bot protection and email integrations must be tested with real provider credenti
 
 Review credentials quarterly and rotate on staff/access changes or suspected exposure. MFA encryption-key rotation requires decrypting/re-encrypting existing secrets under controlled migration; do not simply replace the key and strand users.
 
-Before publishing, set a real security contact and serve /.well-known/security.txt with a current expiry. No contact address is invented in this repository.
+Before public launch, configure SECURITY_CONTACT and SECURITY_EXPIRES in the frontend runtime. The /.well-known/security.txt handler serves the configured contact only when its expiry is valid. No production contact is invented in this repository.
 
 ## References
 

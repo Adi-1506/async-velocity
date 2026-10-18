@@ -10,6 +10,7 @@ const userSchema = new mongoose.Schema(
     emailVerified: { type: Boolean, default: false },
     mfaSecret: { type: String, select: false },
     mfaEnabled: { type: Boolean, default: false },
+    mfaRecoveryHashes: { type: [String], select: false, default: undefined },
     mfaLastStep: { type: Number, default: 0, select: false },
     pendingMfaSecret: { type: String, select: false },
     role: {

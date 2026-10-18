@@ -212,7 +212,7 @@ router.post(
   "/forgot-password",
   accountLimit,
   botGuard,
-  validate(z.object({ email }).strict()),
+  validate(z.object({ email, website: z.string().max(0).optional() }).strict()),
   async (req, res) => {
     if (!mail.configured())
       return res
@@ -227,11 +227,13 @@ router.post(
 );
 router.post(
   "/reset-password",
+  botGuard,
   validate(
     z
       .object({
         token: z.string().regex(/^[a-f0-9]{64}$/),
         password,
+        website: z.string().max(0).optional(),
         code: z
           .string()
           .regex(/^\d{6}$/)
@@ -338,13 +340,87 @@ router.post(
     res.json({ message: "MFA enabled. Sign in again." });
   },
 );
+router.post("/mfa/recovery-codes", auth, sensitive, async (req, res) => {
+  const user = await reauth(req);
+  if (!user.mfaEnabled)
+    return res.status(409).json({ message: "Enable MFA first" });
+  const codes = Array.from({ length: 10 }, () =>
+    crypto.randomBytes(16).toString("hex"),
+  );
+  const update = await User.updateOne(
+    { _id: user._id, mfaEnabled: true },
+    { $set: { mfaRecoveryHashes: codes.map(sessions.hash) } },
+  );
+  if (!update.matchedCount)
+    return res.status(409).json({ message: "Enable MFA first" });
+  res.json({ codes });
+});
+router.post(
+  "/mfa/recover",
+  accountLimit,
+  botGuard,
+  validate(
+    z
+      .object({
+        email,
+        password: z.string().min(1).max(200),
+        recoveryCode: z.string().regex(/^[a-f0-9]{32}$/),
+        website: z.string().max(0).optional(),
+      })
+      .strict(),
+  ),
+  async (req, res) => {
+    const user = await User.findOne({
+      email: req.body.email,
+      deletedAt: null,
+    }).select("+password");
+    const validPassword = await bcrypt.compare(
+      req.body.password,
+      user?.password || dummy,
+    );
+    if (!user || !validPassword)
+      return res.status(401).json({ message: "Recovery failed" });
+    // The same atomic update consumes all codes and disables MFA. Concurrent replays cannot succeed.
+    const update = await User.updateOne(
+      {
+        _id: user._id,
+        deletedAt: null,
+        password: user.password,
+        mfaEnabled: true,
+        mfaRecoveryHashes: sessions.hash(req.body.recoveryCode),
+      },
+      {
+        $set: { mfaEnabled: false },
+        $unset: {
+          mfaSecret: 1,
+          pendingMfaSecret: 1,
+          mfaLastStep: 1,
+          mfaRecoveryHashes: 1,
+        },
+      },
+    );
+    if (!update.modifiedCount)
+      return res.status(401).json({ message: "Recovery failed" });
+    req.user = user;
+    await sessions.revokeUser(user._id, req.app.get("io"));
+    res.json({
+      message:
+        "Authenticator removed and sessions revoked. Sign in and set up MFA again; all old recovery codes are invalid.",
+    });
+  },
+);
 router.post("/mfa/disable", auth, sensitive, async (req, res) => {
   const user = await reauth(req);
   await User.updateOne(
     { _id: user._id },
     {
       $set: { mfaEnabled: false },
-      $unset: { mfaSecret: 1, pendingMfaSecret: 1, mfaLastStep: 1 },
+      $unset: {
+        mfaSecret: 1,
+        pendingMfaSecret: 1,
+        mfaLastStep: 1,
+        mfaRecoveryHashes: 1,
+      },
     },
   );
   await sessions.revokeUser(user._id, req.app.get("io"));

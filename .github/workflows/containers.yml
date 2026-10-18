@@ -1,0 +1,26 @@
+name: Containers
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build-and-scan:
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        app: [backend, frontend]
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+      - name: Build image without production secrets
+        run: docker build --build-arg NEXT_PUBLIC_API_URL=https://app.example.test --build-arg NEXT_PUBLIC_SOCKET_URL=https://app.example.test -t standup-${{ matrix.app }}:${{ github.sha }} ${{ matrix.app }}
+      - name: Scan image for high and critical vulnerabilities
+        uses: aquasecurity/trivy-action@6abccf398f78b4c337599c0656f933d91efb91a0
+        with:
+          image-ref: standup-${{ matrix.app }}:${{ github.sha }}
+          format: table
+          severity: HIGH,CRITICAL
+          exit-code: '1'
+          ignore-unfixed: false

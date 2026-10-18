@@ -32,6 +32,8 @@ export default defineConfig({
       env: {
         NEXT_PUBLIC_API_URL: "http://localhost:5055",
         NEXT_PUBLIC_SOCKET_URL: "http://localhost:5055",
+        SECURITY_CONTACT: "mailto:security@example.test",
+        SECURITY_EXPIRES: new Date(Date.now() + 180 * 86400000).toISOString(),
       },
     },
   ],

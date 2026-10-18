@@ -290,6 +290,146 @@ test("scheduler retries do not duplicate notifications/digests and handle midnig
     }),
   );
 });
+test("MFA recovery codes are hashed, require a password, and cannot be replayed", async () => {
+  const a = await login(member);
+  const { authenticator } = require("otplib"),
+    { encrypt } = require("../lib/security");
+  const secret = authenticator.generateSecret();
+  await User.updateOne(
+    { _id: member._id },
+    { $set: { mfaEnabled: true, mfaSecret: encrypt(secret), mfaLastStep: 0 } },
+  );
+  const generated = await send(a, "post", "/api/auth/mfa/recovery-codes", {
+    password,
+    code: authenticator.generate(secret),
+  });
+  assert.equal(generated.status, 200);
+  assert.equal(generated.body.codes.length, 10);
+  const stored = await User.findById(member._id).select("+mfaRecoveryHashes");
+  assert.ok(
+    stored.mfaRecoveryHashes.every((hash) => /^[a-f0-9]{64}$/.test(hash)),
+  );
+  assert.ok(!stored.mfaRecoveryHashes.includes(generated.body.codes[0]));
+  assert.equal((await a.get("/api/auth/me")).body.mfaRecoveryHashes, undefined);
+  const body = {
+    email: member.email,
+    password,
+    recoveryCode: generated.body.codes[0],
+  };
+  assert.equal(
+    (
+      await send(request(app), "post", "/api/auth/mfa/recover", {
+        ...body,
+        password: "wrong",
+      })
+    ).status,
+    401,
+  );
+  const results = await Promise.all(
+    [1, 2].map(() => send(request(app), "post", "/api/auth/mfa/recover", body)),
+  );
+  assert.deepEqual(results.map((r) => r.status).sort(), [200, 401]);
+  assert.equal((await a.get("/api/teams")).status, 401);
+  const recovered = await User.findById(member._id).select(
+    "+mfaRecoveryHashes +mfaSecret",
+  );
+  assert.equal(recovered.mfaEnabled, false);
+  assert.equal(recovered.mfaSecret, undefined);
+  assert.equal(recovered.mfaRecoveryHashes, undefined);
+});
+
+test("Turnstile fails closed on missing tokens, provider errors and wrong hostnames", async () => {
+  const fetch = global.fetch;
+  const secret = process.env.TURNSTILE_SECRET_KEY;
+  const required = process.env.REQUIRE_BOT_PROTECTION;
+  try {
+    process.env.REQUIRE_BOT_PROTECTION = "true";
+    delete process.env.TURNSTILE_SECRET_KEY;
+    assert.equal(
+      (await send(request(app), "post", "/api/auth/reset-password", {})).status,
+      503,
+    );
+    process.env.TURNSTILE_SECRET_KEY = "test-provider-secret";
+    assert.equal(
+      (
+        await send(request(app), "post", "/api/auth/login", {
+          email: member.email,
+          password,
+        })
+      ).status,
+      400,
+    );
+    global.fetch = async () => ({
+      json: async () => ({ success: true, hostname: "wrong.example.test" }),
+    });
+    assert.equal(
+      (
+        await send(request(app), "post", "/api/auth/login", {
+          email: member.email,
+          password,
+          turnstileToken: "test",
+        })
+      ).status,
+      400,
+    );
+    global.fetch = async () => {
+      throw new Error("offline");
+    };
+    assert.equal(
+      (
+        await send(request(app), "post", "/api/auth/login", {
+          email: member.email,
+          password,
+          turnstileToken: "test",
+        })
+      ).status,
+      503,
+    );
+    global.fetch = async () => ({
+      json: async () => ({ success: true, hostname: "localhost" }),
+    });
+    assert.equal(
+      (
+        await send(request(app), "post", "/api/auth/login", {
+          email: member.email,
+          password,
+          turnstileToken: "test",
+        })
+      ).status,
+      200,
+    );
+  } finally {
+    global.fetch = fetch;
+    if (secret === undefined) delete process.env.TURNSTILE_SECRET_KEY;
+    else process.env.TURNSTILE_SECRET_KEY = secret;
+    if (required === undefined) delete process.env.REQUIRE_BOT_PROTECTION;
+    else process.env.REQUIRE_BOT_PROTECTION = required;
+  }
+});
+
+test("passkey removal requires ownership and revokes sessions", async () => {
+  const a = await login(member),
+    Passkey = require("../models/Passkey");
+  const key = await Passkey.create({
+    user: other._id,
+    credentialId: crypto.randomBytes(32).toString("base64url"),
+    publicKey: crypto.randomBytes(32),
+    counter: 0,
+  });
+  assert.equal(
+    (await send(a, "delete", "/api/passkeys/" + key._id, { password })).status,
+    404,
+  );
+  assert.ok(await Passkey.findById(key._id));
+  await Passkey.updateOne({ _id: key._id }, { $set: { user: member._id } });
+  assert.equal(
+    (await send(a, "delete", "/api/passkeys/" + key._id, { password })).status,
+    200,
+  );
+  assert.equal(await Passkey.findById(key._id), null);
+  assert.equal((await a.get("/api/teams")).status, 401);
+});
+
 test("MFA requires a valid code and prevents code replay", async () => {
   const { authenticator } = require("otplib"),
     { encrypt } = require("../lib/security");

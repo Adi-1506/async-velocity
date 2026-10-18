@@ -55,7 +55,7 @@ export default function AuthForm({
       }
       if (mode === "forgot") {
         path = "/api/auth/forgot-password";
-        body = { email };
+        body = { email, website: String(f.get("website") || "") };
       }
       if (mode === "reset" || mode === "verify") {
         const token =
@@ -66,11 +66,16 @@ export default function AuthForm({
             : "/api/auth/verify-email";
         body =
           mode === "reset"
-            ? { token, password, ...(code ? { code } : {}) }
+            ? {
+                token,
+                password,
+                website: String(f.get("website") || ""),
+                ...(code ? { code } : {}),
+              }
             : { token };
         if (mode === "reset") z.string().min(12).max(72).parse(password);
       }
-      if (["login", "admin", "register", "forgot"].includes(mode))
+      if (["login", "admin", "register", "forgot", "reset"].includes(mode))
         body.turnstileToken = String(f.get("turnstileToken") || "");
       const data = await api<{ message: string; role?: string }>(path, {
         method: "POST",
@@ -166,7 +171,7 @@ export default function AuthForm({
               {notice}
             </p>
           )}
-          {["login", "admin", "register", "forgot"].includes(mode) && (
+          {["login", "admin", "register", "forgot", "reset"].includes(mode) && (
             <BotCheck />
           )}
           <button disabled={busy}>
@@ -183,6 +188,7 @@ export default function AuthForm({
           <Link href="/admin/login">Admin sign in</Link>
           <Link href="/register">Register</Link>
           <Link href="/forgot-password">Forgot password?</Link>
+          <Link href="/recover-mfa">Lost your authenticator?</Link>
         </div>
       </section>
     </main>

@@ -88,7 +88,10 @@ test("member and administrator can complete the web workflow", async ({
       () => document.documentElement.scrollWidth <= window.innerWidth,
     ),
   ).toBe(true);
-  await page.getByRole("button", { name: "Sign out", exact: true }).click();
+  await page.getByRole("link", { name: "Account", exact: true }).click();
+  await page.getByText("Manage registered passkeys (1)", { exact: true }).click();
+  await page.getByLabel("Confirm password", { exact: true }).fill(password);
+  await page.getByRole("button", { name: "Remove passkey and sign out", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "Welcome back" }),
   ).toBeVisible();
@@ -109,4 +112,13 @@ test("member and administrator can complete the web workflow", async ({
     page.getByRole("heading", { name: "Design team", exact: true }),
   ).toBeVisible();
   expect(errors).toEqual([]);
+});
+
+test("disclosure contact is served with no-store and recovery page is available", async ({ request, page }) => {
+  const response = await request.get("/.well-known/security.txt");
+  expect(response.status()).toBe(200);
+  expect(response.headers()["cache-control"]).toBe("no-store");
+  expect(await response.text()).toContain("Contact: mailto:security@example.test");
+  await page.goto("/recover-mfa");
+  await expect(page.getByRole("heading", { name: "Recover authenticator access" })).toBeVisible();
 });

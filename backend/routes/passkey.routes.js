@@ -175,7 +175,12 @@ router.post("/login/verify", async (req, res) => {
 router.delete("/:id", auth, credentials, async (req, res) => {
   await reauth(req);
   id.parse(req.params.id);
-  await Passkey.deleteOne({ _id: req.params.id, user: req.user._id });
+  const removed = await Passkey.deleteOne({
+    _id: req.params.id,
+    user: req.user._id,
+  });
+  if (!removed.deletedCount)
+    return res.status(404).json({ message: "Passkey not found" });
   await sessions.revokeUser(req.user._id, req.app.get("io"));
   res.json({ message: "Passkey removed; sign in again" });
 });

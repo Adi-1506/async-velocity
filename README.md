@@ -6,6 +6,7 @@ A web-only asynchronous standup workspace built with Next.js, Express, and Mongo
 
 - Member registration and sign-in; administrator and super-administrator permissions.
 - Revocable eight-hour server sessions, logout everywhere, password changes, authenticator MFA, and passkeys.
+- Hashed single-use MFA recovery codes and passkey management with session revocation.
 - Multiple teams, member management, team-local check-ins, history, literal-text search, and authenticated live updates.
 - Blocker resolution, date-range insights, notifications, and daily/weekly digests.
 - Time-zone-aware working-day schedules, bounded restart catch-up, and database-enforced deduplication.
@@ -37,6 +38,8 @@ Existing development environment files were preserved. Legacy scripts that delet
 | backend | npm run bootstrap | Create the first super administrator |
 | backend | npm run migrate | Create collections and additive indexes |
 | backend | npm test | Isolated API/security and backup-encryption tests |
+| backend | npm run test:restore | Real encrypted backup/restore drill using disposable databases |
+| backend | npm run preflight | Report missing production configuration without exposing values |
 | frontend | npm run dev | Frontend development server |
 | frontend | npm run lint | TypeScript and React Hooks lint |
 | frontend | npm run typecheck | Type checking |

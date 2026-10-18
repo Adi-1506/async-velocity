@@ -4,12 +4,12 @@ permissions:
   contents: read
 jobs:
   verify:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           fetch-depth: 0
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
         with:
           node-version: '22'
           cache: npm
@@ -26,6 +26,14 @@ jobs:
         working-directory: frontend
       - run: npm test
         working-directory: backend
+      - name: Install checksum-verified database backup tools
+        run: |
+          curl --fail --silent --show-error --location https://fastdl.mongodb.org/tools/db/mongodb-database-tools-ubuntu2404-x86_64-100.19.1.tgz -o "$RUNNER_TEMP/mongo-tools.tgz"
+          echo "f34b84a67ab96b4ff52571ec5d15e2148d96cb140b1ea9ef8c29ac33c48e3480  $RUNNER_TEMP/mongo-tools.tgz" | sha256sum --check
+          tar -xzf "$RUNNER_TEMP/mongo-tools.tgz" -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/mongodb-database-tools-ubuntu2404-x86_64-100.19.1/bin" >> "$GITHUB_PATH"
+      - run: npm run test:restore
+        working-directory: backend
       - run: npm run lint
         working-directory: frontend
       - run: npm run build
@@ -35,9 +43,9 @@ jobs:
       - run: npm run test:e2e
         working-directory: frontend
   secrets:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           fetch-depth: 0
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff

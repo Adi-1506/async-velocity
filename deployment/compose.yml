@@ -1,0 +1,52 @@
+name: async-velocity
+services:
+  proxy:
+    image: caddy:2-alpine@sha256:d8542f48d34a9cf4e4c11a478865229840e87e4c96ea3f439101f31a5d35f75f
+    restart: unless-stopped
+    ports: ["80:80", "443:443", "443:443/udp"]
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:?Set APP_DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL:?Set ACME_EMAIL}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on: [frontend, backend]
+    security_opt: ["no-new-privileges:true"]
+  backend:
+    build: ../backend
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      PORT: "5000"
+      TRUST_PROXY_HOPS: "1"
+    command: ["sh", "-c", "node scripts/preflight.js --app-only && exec node server.js"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    read_only: true
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=64m"]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:5000/health',{headers:{'X-Forwarded-Proto':'https'}}).then(async r=>process.exit(r.ok&&(await r.json()).status==='ok'?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
+  frontend:
+    build:
+      context: ../frontend
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:?Set NEXT_PUBLIC_API_URL}
+        NEXT_PUBLIC_SOCKET_URL: ${NEXT_PUBLIC_SOCKET_URL:?Set NEXT_PUBLIC_SOCKET_URL}
+        NEXT_PUBLIC_TURNSTILE_SITE_KEY: ${NEXT_PUBLIC_TURNSTILE_SITE_KEY:?Set the public Turnstile site key}
+    restart: unless-stopped
+    environment:
+      SECURITY_CONTACT: ${SECURITY_CONTACT:?Set disclosure contact}
+      SECURITY_EXPIRES: ${SECURITY_EXPIRES:?Set disclosure expiry}
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    read_only: true
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=64m", "/app/.next/cache:rw,nosuid,size=128m,uid=1000,gid=1000"]
+volumes:
+  caddy_data:
+  caddy_config:

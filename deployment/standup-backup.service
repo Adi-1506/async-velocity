@@ -1,0 +1,19 @@
+[Unit]
+Description=Encrypted Async Velocity database backup
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=standup-backup
+Group=standup-backup
+WorkingDirectory=/opt/async-velocity/backend
+EnvironmentFile=/etc/async-velocity/backup.env
+ExecStart=/usr/bin/node scripts/backup.js
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/async-velocity/backups
+
