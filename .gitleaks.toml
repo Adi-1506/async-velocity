@@ -1,0 +1,3 @@
+title = "StandupBot secret scanning"
+[extend]
+useDefault = true

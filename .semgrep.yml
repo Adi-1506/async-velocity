@@ -1,0 +1,19 @@
+rules:
+  - id: no-user-html
+    patterns:
+      - pattern: dangerouslySetInnerHTML={$VALUE}
+    message: Do not render untrusted HTML.
+    languages: [typescript, javascript]
+    severity: ERROR
+  - id: no-dynamic-eval
+    pattern: eval(...)
+    message: Dynamic evaluation is forbidden.
+    languages: [javascript, typescript]
+    severity: ERROR
+  - id: no-request-mass-assignment
+    pattern-either:
+      - pattern: $MODEL.create(req.body)
+      - pattern: $MODEL.findOneAndUpdate($FILTER, req.body, ...)
+    message: Use explicit validated writable fields.
+    languages: [javascript, typescript]
+    severity: ERROR

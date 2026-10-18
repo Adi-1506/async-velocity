@@ -1,26 +1,20 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
 import "./globals.css";
-import { Providers } from "../context/Providers";
-
-const inter = Inter({ subsets: ["latin"] });
-
+import { Providers } from "./Providers";
+export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
-  title: "Async Velocity",
-  description: "Asynchronous Standup & Team Synchronizer",
+  title: "StandupBot — Team workspace",
+  description: "Daily progress, blockers, and digests for distributed teams.",
 };
-
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
+}) {
   return (
     <html lang="en">
-      <body className={`${inter.className} antialiased`}>
-        <Providers>
-          {children}
-        </Providers>
+      <body>
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

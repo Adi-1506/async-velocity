@@ -1,34 +1,44 @@
 {
-  "name": "async-velocity-backend",
+  "name": "backend",
   "version": "1.0.0",
-  "main": "server.ts",
+  "description": "",
+  "main": "index.js",
   "scripts": {
-    "dev": "tsx watch server.ts",
-    "seed": "tsx src/seed.ts",
-    "build": "tsc"
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "test": "node --test --test-concurrency=1 tests/*.test.js",
+    "bootstrap": "node scripts/bootstrap.js",
+    "migrate": "node scripts/migrate.js",
+    "backup": "node scripts/backup.js",
+    "restore": "node scripts/backup.js restore"
   },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
   "dependencies": {
-    "bcryptjs": "^2.4.3",
-    "cookie-parser": "^1.4.6",
-    "cors": "^2.8.5",
-    "dotenv": "^16.4.5",
-    "express": "^4.19.2",
-    "express-rate-limit": "^7.2.0",
-    "helmet": "^7.1.0",
-    "jsonwebtoken": "^9.0.2",
-    "mongoose": "^8.3.4",
-    "morgan": "^1.10.0",
-    "zod": "^3.23.8"
+    "@simplewebauthn/server": "14.0.3",
+    "bcrypt": "6.0.0",
+    "cookie": "2.0.1",
+    "cookie-parser": "1.4.7",
+    "cors": "2.8.6",
+    "dotenv": "17.4.2",
+    "express": "5.2.1",
+    "express-rate-limit": "8.7.1",
+    "helmet": "8.3.0",
+    "moment-timezone": "0.6.2",
+    "mongoose": "9.7.3",
+    "node-cron": "4.5.0",
+    "nodemailer": "10.1.2",
+    "otplib": "12.0.1",
+    "socket.io": "4.8.3",
+    "zod": "4.6.7"
   },
   "devDependencies": {
-    "@types/bcryptjs": "^2.4.6",
-    "@types/cookie-parser": "^1.4.7",
-    "@types/cors": "^2.8.17",
-    "@types/express": "^4.17.21",
-    "@types/jsonwebtoken": "^9.0.6",
-    "@types/morgan": "^1.9.9",
-    "@types/node": "^20.12.11",
-    "tsx": "^4.9.3",
-    "typescript": "^5.4.5"
+    "mongodb-memory-server": "11.3.0",
+    "supertest": "7.3.1"
+  },
+  "engines": {
+    "node": ">=22.0.0"
   }
 }

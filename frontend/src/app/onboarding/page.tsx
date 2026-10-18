@@ -1,4 +1,0 @@
-"use client";
-import OnboardingWizard from "@/components/OnboardingWizard";
-import { useAppContext } from "@/context/AppContext";
-export default function Page() { const { userProfile, setUserProfile, handleOnboardingComplete, triggerToast, darkMode, setDarkMode } = useAppContext(); return <div className="min-h-screen flex items-center justify-center py-10 relative bg-zinc-50 dark:bg-zinc-950"><div className="absolute top-0 right-0 p-4"><button onClick={() => setDarkMode(!darkMode)} className="p-2 rounded-xl hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-500 dark:text-zinc-400">{darkMode ? "?? Light Mode" : "?? Dark Mode"}</button></div><OnboardingWizard userProfile={userProfile} setUserProfile={setUserProfile} onComplete={handleOnboardingComplete} triggerToast={triggerToast} /></div>; }
