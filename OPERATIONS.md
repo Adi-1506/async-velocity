@@ -53,6 +53,8 @@ Run migrations and administrator bootstrap separately with provisioning credenti
 
 The API container runs `preflight --app-only` before startup, rejecting missing HTTPS, authenticated database TLS, mail, bot protection, MFA encryption and disclosure configuration. For a complete host-side check including backup settings, run `npm run preflight` in backend with both frontend/server and backup configuration supplied in the environment. This checks configuration, not provider connectivity or operational readiness.
 
+Application runtime containers use pinned non-root distroless Node images without a shell or package manager. Use `docker compose exec backend /nodejs/bin/node scripts/migrate.js` only with separately provided provisioning credentials; shell-based container commands will not work. Prefer running migrations and backup tooling in a separate administrative environment. Container CI checks native password hashing and frontend HTTP startup as well as vulnerabilities.
+
 Set SECURITY_CONTACT to your actual `mailto:` address or HTTPS disclosure page and SECURITY_EXPIRES to an ISO date within the next year in the frontend runtime. `/.well-known/security.txt` returns 404 until valid values are configured. Renew it before expiry.
 
 Before launch, verify real SMTP and Turnstile, database roles/encryption, DNS/email authentication, WAF/DDoS protection, monitored backups and PII-scrubbed error alerts. Arrange independent security testing and assign an incident owner. These remain external setup tasks, not completed by the templates.

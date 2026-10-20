@@ -16,4 +16,3 @@ PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
 ReadWritePaths=/var/lib/async-velocity/backups
-

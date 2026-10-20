@@ -430,6 +430,88 @@ test("passkey removal requires ownership and revokes sessions", async () => {
   assert.equal((await a.get("/api/teams")).status, 401);
 });
 
+test("SMTP sends a usable expiring verification link through a local test server", async () => {
+  const net = require("net"),
+    { sendAction } = require("../lib/mail"),
+    ActionToken = require("../models/ActionToken");
+  const names = [
+    "SMTP_HOST",
+    "SMTP_PORT",
+    "SMTP_USER",
+    "SMTP_PASSWORD",
+    "MAIL_FROM",
+  ];
+  const previous = Object.fromEntries(
+    names.map((name) => [name, process.env[name]]),
+  );
+  let mail = "";
+  const sockets = new Set();
+  const smtp = net.createServer((socket) => {
+    sockets.add(socket);
+    socket.on("close", () => sockets.delete(socket));
+    socket.write("220 localhost test SMTP\r\n");
+    let buffer = "",
+      data = false;
+    socket.on("data", (chunk) => {
+      buffer += chunk.toString();
+      let end;
+      while ((end = buffer.indexOf("\r\n")) >= 0) {
+        const line = buffer.slice(0, end);
+        buffer = buffer.slice(end + 2);
+        if (data) {
+          if (line === ".") {
+            data = false;
+            socket.write("250 accepted\r\n");
+          } else mail += line + "\r\n";
+        } else if (line.startsWith("EHLO") || line.startsWith("HELO"))
+          socket.write("250 localhost\r\n");
+        else if (line === "DATA") {
+          data = true;
+          socket.write("354 send data\r\n");
+        } else if (line === "QUIT") socket.end("221 bye\r\n");
+        else socket.write("250 OK\r\n");
+      }
+    });
+  });
+  await new Promise((resolve) => smtp.listen(0, "127.0.0.1", resolve));
+  try {
+    Object.assign(process.env, {
+      SMTP_HOST: "127.0.0.1",
+      SMTP_PORT: String(smtp.address().port),
+      SMTP_USER: "",
+      SMTP_PASSWORD: "",
+      MAIL_FROM: "noreply@example.test",
+    });
+    await sendAction(member, "verify");
+    const decoded = mail.replace(/=\r\n/g, "").replace(/=3D/g, "=");
+    const token = decoded.match(/#token=([a-f0-9]{64})/)?.[1];
+    assert.ok(token);
+    const record = await ActionToken.findOne({
+      user: member._id,
+      purpose: "verify",
+    });
+    assert.equal(record.tokenHash, require("../lib/sessions").hash(token));
+    assert.ok(record.expiresAt > new Date());
+    assert.ok(record.expiresAt <= new Date(Date.now() + 30 * 60000));
+    assert.equal(
+      (await send(request(app), "post", "/api/auth/verify-email", { token }))
+        .status,
+      200,
+    );
+    assert.equal(
+      (await send(request(app), "post", "/api/auth/verify-email", { token }))
+        .status,
+      400,
+    );
+  } finally {
+    for (const name of names)
+      if (previous[name] === undefined) delete process.env[name];
+      else process.env[name] = previous[name];
+    for (const socket of sockets) socket.destroy();
+    await new Promise((resolve) => smtp.close(resolve));
+  }
+});
+
 test("MFA requires a valid code and prevents code replay", async () => {
   const { authenticator } = require("otplib"),
     { encrypt } = require("../lib/security");

@@ -10,12 +10,11 @@ ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_SOCKET_URL=$NEXT_PUBLIC_SOCKET_URL
 ENV NEXT_PUBLIC_TURNSTILE_SITE_KEY=$NEXT_PUBLIC_TURNSTILE_SITE_KEY
 RUN npm run build
-FROM node:22-bookworm-slim@sha256:c3de60bf2f9dd0ac6370e6117950ff62d6e339527e7472301c9c78a017978392
+FROM gcr.io/distroless/nodejs22-debian13:nonroot@sha256:668bb45274f097b5b8b41e9825a9bbd3b5e5c44cec5c50c61fe2a1b6ce5f6ba6
 WORKDIR /app
 ENV NODE_ENV=production
 ENV HOSTNAME=0.0.0.0
-COPY --from=build --chown=node:node /app/.next/standalone ./
-COPY --from=build --chown=node:node /app/.next/static ./.next/static
-USER node
+COPY --from=build --chown=65532:65532 /app/.next/standalone ./
+COPY --from=build --chown=65532:65532 /app/.next/static ./.next/static
 EXPOSE 3000
-CMD ["node","server.js"]
+CMD ["server.js"]

@@ -57,7 +57,7 @@ This is a web-only team standup application using MongoDB, not a health app or S
 
 ## Local validation
 
-- Backend: 20 tests pass, including authorization, sessions, input tampering, MFA replay, sockets, scheduler deduplication, tokens, rate limits, passkey challenges, and encrypted archive tampering.
+- Backend: 21 tests pass, including authorization, sessions, input tampering, MFA replay/recovery, sockets, scheduler deduplication, tokens, rate limits, passkey management, local SMTP delivery, and encrypted archive tampering.
 - Browser: production-build workflow passes for member/admin usage and virtual-authenticator passkey enrollment/login; mobile viewport checked.
 - Frontend lint, type checking and production build pass.
 - Backend and frontend dependency audits report zero known vulnerabilities.

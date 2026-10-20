@@ -28,6 +28,11 @@ async function sendAction(user, purpose) {
     port: Number(process.env.SMTP_PORT || 587),
     secure: process.env.SMTP_PORT === "465",
     requireTLS: process.env.NODE_ENV === "production",
+    connectionTimeout: 5000,
+    greetingTimeout: 5000,
+    socketTimeout: 10000,
+    disableFileAccess: true,
+    disableUrlAccess: true,
     auth: process.env.SMTP_USER
       ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASSWORD }
       : undefined,
