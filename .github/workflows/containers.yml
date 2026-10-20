@@ -32,8 +32,10 @@ jobs:
         if: matrix.app == 'frontend'
         run: |
           docker run -d --name frontend-smoke -p 127.0.0.1:3000:3000 standup-frontend:${{ github.sha }}
-          curl --fail --retry 10 --retry-delay 2 --retry-connrefused http://127.0.0.1:3000/login -o /tmp/login.html
+          curl --fail --retry 10 --retry-delay 2 --retry-all-errors --max-time 10 http://127.0.0.1:3000/login -o /tmp/login.html
           grep -q 'Welcome back' /tmp/login.html
       - name: Stop frontend smoke container
         if: always() && matrix.app == 'frontend'
-        run: docker rm -f frontend-smoke || true
+        run: |
+          docker logs frontend-smoke || true
+          docker rm -f frontend-smoke || true
