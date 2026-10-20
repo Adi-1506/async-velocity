@@ -9,6 +9,10 @@ const mongoose = require("mongoose"),
   { spawn } = require("child_process");
 const request = require("supertest"),
   bcrypt = require("bcrypt");
+let stage = "setup";
+// MongoDB may rebuild indexes in a different order during restoration.
+const orderedIndexes = (indexes) =>
+  [...indexes].sort((a, b) => a.name.localeCompare(b.name));
 async function run(args, env) {
   await new Promise((resolve, reject) => {
     const child = spawn(
@@ -76,25 +80,31 @@ async function drill() {
       RESTORE_DB_NAME: "drill_restored",
       RESTORE_CONFIRM: "RESTORE_TO_ISOLATED_DATABASE",
     };
+    stage = "encrypted backup";
     await run([], env);
     const archive = (await fs.readdir(directory)).find((name) =>
       name.endsWith(".enc"),
     );
     assert.ok(archive);
+    stage = "database restore";
     await run(["restore", path.join(directory, archive)], env);
     await mongoose.connect(target, { autoIndex: false, autoCreate: false });
+    stage = "collection counts";
     for (const model of Object.values(mongoose.models))
       assert.equal(await model.countDocuments(), counts[model.modelName]);
+    stage = "index definitions";
     assert.deepEqual(
-      await mongoose.model("User").collection.indexes(),
-      indexes,
+      orderedIndexes(await mongoose.model("User").collection.indexes()),
+      orderedIndexes(indexes),
     );
+    stage = "restored login";
     const agent = request.agent(app);
     const login = await agent
       .post("/api/auth/login")
       .set("Origin", process.env.CLIENT_URL)
       .send({ email: user.email, password });
     assert.equal(login.status, 200);
+    stage = "restored team access";
     const teams = await agent.get("/api/teams");
     assert.equal(teams.status, 200);
     assert.equal(teams.body[0]._id, String(team._id));
@@ -111,7 +121,7 @@ async function drill() {
 }
 drill().catch(() => {
   console.error(
-    "Isolated restore drill failed. No application database was used.",
+    "Isolated restore drill failed at " + stage + ". No application database was used.",
   );
   process.exitCode = 1;
 });
