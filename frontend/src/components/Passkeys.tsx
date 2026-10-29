@@ -8,7 +8,18 @@ import type {
   PublicKeyCredentialCreationOptionsJSON,
   PublicKeyCredentialRequestOptionsJSON,
 } from "@simplewebauthn/browser";
-import { api, message, signOut } from "@/lib/api";
+import { ChevronRight, Fingerprint, KeyRound } from "lucide-react";
+import { api, formatDate, message, signOut } from "@/lib/api";
+import { Alert, ConfirmIdentity, Field, SubmitButton } from "./ui";
+
+/** Browsers report a cancelled passkey prompt with this wording. */
+function passkeyMessage(e: unknown) {
+  const m = message(e);
+  return /not allowed|timed out|cancel/i.test(m)
+    ? "The passkey request was cancelled or timed out. Try again when you're ready."
+    : m;
+}
+
 export function PasskeyLogin() {
   const [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
@@ -30,32 +41,38 @@ export function PasskeyLogin() {
         result.role === "member" ? "/dashboard" : "/admin/dashboard",
       );
     } catch (e) {
-      setError(message(e));
+      setError(passkeyMessage(e));
     } finally {
       setBusy(false);
     }
   }
   return (
-    <div>
-      <button className="secondary" disabled={busy} onClick={login}>
+    <div className="grid gap-3">
+      <SubmitButton
+        className="btn btn-secondary btn-block"
+        busy={busy}
+        busyLabel="Waiting for your passkey…"
+        type="button"
+        onClick={login}
+      >
+        <Fingerprint size={16} aria-hidden="true" />
         Sign in with a passkey
-      </button>
-      {error && (
-        <p role="alert" className="error">
-          {error}
-        </p>
-      )}
+      </SubmitButton>
+      {error && <Alert>{error}</Alert>}
     </div>
   );
 }
+
+type Key = { _id: string; createdAt: string };
+
 export default function Passkeys() {
-  const [keys, setKeys] = useState<{ _id: string; createdAt: string }[]>([]);
+  const [keys, setKeys] = useState<Key[] | null>(null);
   const [revision, setRevision] = useState(0);
   const [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
     [busy, setBusy] = useState(false);
   useEffect(() => {
-    api<{ _id: string; createdAt: string }[]>("/api/passkeys")
+    api<Key[]>("/api/passkeys")
       .then(setKeys)
       .catch((e) => setError(message(e)));
   }, [revision]);
@@ -75,15 +92,16 @@ export default function Passkeys() {
       signOut();
     } catch (e) {
       setError(message(e));
-    } finally {
       setBusy(false);
     }
   }
   async function register(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    const form = e.currentTarget;
     setBusy(true);
     setError("");
-    const data = Object.fromEntries(new FormData(e.currentTarget));
+    setNotice("");
+    const data = Object.fromEntries(new FormData(form));
     if (!data.code) delete data.code;
     try {
       const optionsJSON = await api<PublicKeyCredentialCreationOptionsJSON>(
@@ -96,94 +114,82 @@ export default function Passkeys() {
         { method: "POST", body: JSON.stringify(response) },
       );
       setNotice(result.message);
+      form.reset();
       setRevision((value) => value + 1);
     } catch (e) {
-      setError(message(e));
+      setError(passkeyMessage(e));
     } finally {
       setBusy(false);
     }
   }
   return (
-    <section className="card">
-      <h2>Passkeys</h2>
-      <p>
-        Use your device's screen lock or security key to sign in. Registering a
-        key requires your password and, if enabled, an authenticator code.
-      </p>
-      <form onSubmit={register}>
-        <label>
-          Current password
-          <input
-            name="password"
-            type="password"
-            required
-            autoComplete="current-password"
-          />
-        </label>
-        <label>
-          Authenticator code (if enabled)
-          <input
-            name="code"
-            inputMode="numeric"
-            pattern="[0-9]{6}"
-            maxLength={6}
-          />
-        </label>
-        <button disabled={busy}>Register passkey</button>
+    <div className="stack">
+      {keys && keys.length > 0 && (
+        <ul className="rows">
+          {keys.map((key, index) => (
+            <li key={key._id}>
+              <KeyRound size={16} aria-hidden="true" className="text-ink-3" />
+              <div className="row-main">
+                <p className="font-medium">Passkey {index + 1}</p>
+                <p className="meta">Added {formatDate(key.createdAt)}</p>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+      <form className="form" onSubmit={register}>
+        <ConfirmIdentity />
+        <div className="form-actions">
+          <SubmitButton
+            className="btn btn-secondary"
+            busy={busy}
+            busyLabel="Waiting for your device…"
+          >
+            <Fingerprint size={16} aria-hidden="true" />
+            Register passkey
+          </SubmitButton>
+        </div>
       </form>
-      {keys.length > 0 && (
-        <details>
-          <summary>Manage registered passkeys ({keys.length})</summary>
-          <p>
-            Removing a key signs out all sessions. Your password remains
-            available for sign-in.
-          </p>
-          <form onSubmit={remove}>
-            <label>
-              Passkey to remove
-              <select name="key" required>
-                {keys.map((key, index) => (
-                  <option key={key._id} value={key._id}>
-                    Passkey {index + 1} · added{" "}
-                    {new Date(key.createdAt).toLocaleString()}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Confirm password
-              <input
-                name="password"
-                type="password"
-                required
-                autoComplete="current-password"
-              />
-            </label>
-            <label>
-              Confirm authenticator code (if enabled)
-              <input
-                name="code"
-                inputMode="numeric"
-                pattern="[0-9]{6}"
-                maxLength={6}
-              />
-            </label>
-            <button className="danger" disabled={busy}>
-              Remove passkey and sign out
-            </button>
+      {error && <Alert>{error}</Alert>}
+      {notice && <Alert tone="success">{notice}</Alert>}
+      {keys && keys.length > 0 && (
+        <details className="disclosure">
+          <summary>
+            <ChevronRight size={15} aria-hidden="true" />
+            Remove a passkey ({keys.length})
+          </summary>
+          <form className="form" onSubmit={remove}>
+            <p className="section-desc">
+              Removing a passkey signs you out on every device. You can still
+              sign in with your password.
+            </p>
+            <Field label="Passkey">
+              {({ id }) => (
+                <select id={id} className="select" name="key" required>
+                  {keys.map((key, index) => (
+                    <option key={key._id} value={key._id}>
+                      Passkey {index + 1} · added {formatDate(key.createdAt)}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </Field>
+            <ConfirmIdentity
+              passwordLabel="Confirm password"
+              codeLabel="Confirm authenticator code"
+            />
+            <div className="form-actions">
+              <SubmitButton
+                className="btn btn-danger-quiet"
+                busy={busy}
+                busyLabel="Removing…"
+              >
+                Remove passkey and sign out
+              </SubmitButton>
+            </div>
           </form>
         </details>
       )}
-      {error && (
-        <p role="alert" className="error">
-          {error}
-        </p>
-      )}
-      {notice && (
-        <p role="status" className="notice">
-          {notice}
-        </p>
-      )}
-    </section>
+    </div>
   );
 }

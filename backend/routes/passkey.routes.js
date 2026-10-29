@@ -65,7 +65,7 @@ router.post("/register/options", auth, credentials, async (req, res) => {
       .status(400)
       .json({ message: "At most ten passkeys are allowed" });
   const options = await webauthn.generateRegistrationOptions({
-    rpName: "StandupBot",
+    rpName: "Daybrief",
     rpID: rpID(),
     userID: new TextEncoder().encode(req.user.publicId),
     userName: req.user.email,

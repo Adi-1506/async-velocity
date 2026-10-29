@@ -23,23 +23,24 @@ test("member and administrator can complete the web workflow", async ({
   await page.goto("/login");
   await page.getByLabel("Email", { exact: true }).fill("member@example.test");
   await page.getByLabel("Password", { exact: true }).fill(password);
-  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "Team feed", exact: true }),
   ).toBeVisible();
   await expect(page.getByLabel("Team", { exact: true })).toHaveValue(/.+/);
-  await page.getByRole("link", { name: "Daily check-in", exact: true }).click();
   await page
-    .getByLabel("What did you work on?")
+    .locator("#sidebar")
+    .getByRole("link", { name: "Post a check-in", exact: true })
+    .click();
+  await page
+    .getByLabel("What did you finish?")
     .fill("Finished the API integration.");
-  await page
-    .getByLabel("What will you work on next?")
-    .fill("Review the release checklist.");
+  await page.getByLabel("What's next?").fill("Review the release checklist.");
   await page
     .getByLabel("Anything blocking you?")
     .fill("Waiting for a design decision.");
-  await page.getByRole("button", { name: "Share check-in" }).click();
-  await expect(page.getByRole("status")).toContainText("shared with the team");
+  await page.getByRole("button", { name: "Post check-in" }).click();
+  await expect(page.getByRole("status")).toContainText("Check-in posted");
   await page.getByRole("link", { name: "Team feed", exact: true }).click();
   await expect(page.getByText("Finished the API integration.")).toBeVisible();
   await page.screenshot({
@@ -48,19 +49,21 @@ test("member and administrator can complete the web workflow", async ({
   });
   await page.getByRole("button", { name: "Mark resolved" }).click();
   await expect(
-    page.getByRole("heading", { name: "Blocker · resolved" }),
+    page.getByRole("heading", { name: "Blocker resolved" }),
   ).toBeVisible();
   await page.getByRole("link", { name: "Insights", exact: true }).click();
   await expect(
-    page.getByRole("heading", { name: "Daily participation" }),
+    page.getByRole("heading", { name: "Check-ins per day" }),
   ).toBeVisible();
   await page.getByRole("link", { name: "Notifications", exact: true }).click();
   await expect(
     page.getByText("Welcome! Share your first check-in."),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Mark read" }).click();
-  await expect(page.getByRole("button", { name: "Mark read" })).toHaveCount(0);
-  await page.getByRole("link", { name: "Account", exact: true }).click();
+  await page.getByRole("button", { name: "Mark as read" }).click();
+  await expect(page.getByRole("button", { name: "Mark as read" })).toHaveCount(
+    0,
+  );
+  await page.getByRole("link", { name: /Account & security/ }).click();
   const passkeys = page
     .locator("section")
     .filter({
@@ -77,8 +80,12 @@ test("member and administrator can complete the web workflow", async ({
     page.getByRole("heading", { name: "Team feed", exact: true }),
   ).toBeVisible();
   await page.setViewportSize({ width: 390, height: 844 });
+  const openNav = () =>
+    page.getByRole("button", { name: "Open navigation" }).click();
+  await openNav();
   await page.getByRole("link", { name: "Team feed", exact: true }).click();
   await expect(page.getByText("Finished the API integration.")).toBeVisible();
+  await expect(page.locator("#sidebar")).toBeHidden();
   await page.screenshot({
     path: "test-results/team-feed-mobile.png",
     fullPage: true,
@@ -88,8 +95,9 @@ test("member and administrator can complete the web workflow", async ({
       () => document.documentElement.scrollWidth <= window.innerWidth,
     ),
   ).toBe(true);
-  await page.getByRole("link", { name: "Account", exact: true }).click();
-  await page.getByText("Manage registered passkeys (1)", { exact: true }).click();
+  await openNav();
+  await page.getByRole("link", { name: /Account & security/ }).click();
+  await page.getByText("Remove a passkey (1)", { exact: true }).click();
   await page.getByLabel("Confirm password", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Remove passkey and sign out", exact: true }).click();
   await expect(
@@ -98,14 +106,15 @@ test("member and administrator can complete the web workflow", async ({
   await page.goto("/admin/login");
   await page.getByLabel("Email", { exact: true }).fill("admin@example.test");
   await page.getByLabel("Password", { exact: true }).fill(password);
-  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "Team settings", exact: true }),
   ).toBeVisible();
-  await page.getByLabel("Digest frequency").selectOption("weekly");
+  await page.getByLabel("Summary frequency").selectOption("weekly");
   await page.getByRole("button", { name: "Save settings" }).click();
-  await expect(page.getByText("Team settings saved.")).toBeVisible();
-  await page.getByRole("link", { name: "Manage teams", exact: true }).click();
+  await expect(page.getByText("Settings saved.")).toBeVisible();
+  await openNav();
+  await page.getByRole("link", { name: "All teams", exact: true }).click();
   await page.getByLabel("Name", { exact: true }).fill("Design team");
   await page.getByRole("button", { name: "Create team", exact: true }).click();
   await expect(

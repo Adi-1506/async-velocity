@@ -311,7 +311,7 @@ router.post("/mfa/setup", auth, sensitive, async (req, res) => {
   );
   res.json({
     secret,
-    uri: authenticator.keyuri(user.email, "StandupBot", secret),
+    uri: authenticator.keyuri(user.email, "Daybrief", secret),
   });
 });
 router.post(

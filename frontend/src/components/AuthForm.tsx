@@ -1,26 +1,72 @@
 "use client";
 import { PasskeyLogin } from "./Passkeys";
 import BotCheck from "./BotCheck";
+import AuthLayout from "./AuthLayout";
+import { Alert, Field, SubmitButton } from "./ui";
 import Link from "next/link";
-import { useState, FormEvent } from "react";
+import { useState, FormEvent, ReactNode } from "react";
 import { z } from "zod";
-import { api, message } from "@/lib/api";
-export default function AuthForm({
-  mode = "login",
-}: {
-  mode?: "login" | "admin" | "register" | "forgot" | "reset" | "verify";
-}) {
+import { api, message, notice as friendly } from "@/lib/api";
+
+type Mode = "login" | "admin" | "register" | "forgot" | "reset" | "verify";
+
+const copy: Record<
+  Mode,
+  { title: string; lede: string; button: string; busy: string }
+> = {
+  login: {
+    title: "Welcome back",
+    lede: "Sign in to see what your team is working on.",
+    button: "Sign in",
+    busy: "Signing in…",
+  },
+  admin: {
+    title: "Admin sign-in",
+    lede: "For team and workspace admins.",
+    button: "Sign in",
+    busy: "Signing in…",
+  },
+  register: {
+    title: "Create your account",
+    lede: "Once you're set up, a team admin can add you to your team.",
+    button: "Create account",
+    busy: "Creating your account…",
+  },
+  forgot: {
+    title: "Reset your password",
+    lede: "Enter the email you signed up with and we'll send you a link to choose a new password.",
+    button: "Send reset link",
+    busy: "Sending…",
+  },
+  reset: {
+    title: "Choose a new password",
+    lede: "You'll sign in with it from now on.",
+    button: "Save new password",
+    busy: "Saving…",
+  },
+  verify: {
+    title: "Confirm your email",
+    lede: "One click and your account is ready.",
+    button: "Confirm email",
+    busy: "Confirming…",
+  },
+};
+
+const email = z
+  .string()
+  .email("Enter a valid email address, like name@company.com.")
+  .max(254, "That email address is too long.");
+const newPassword = z
+  .string()
+  .min(12, "Use at least 12 characters for your password.")
+  .max(72, "Passwords can be up to 72 characters.");
+
+export default function AuthForm({ mode = "login" }: { mode?: Mode }) {
   const [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
+    [done, setDone] = useState(false),
     [busy, setBusy] = useState(false);
-  const title = {
-    login: "Welcome back",
-    admin: "Administrator sign in",
-    register: "Create your account",
-    forgot: "Reset your password",
-    reset: "Choose a new password",
-    verify: "Verify your email",
-  }[mode];
+  const c = copy[mode];
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setBusy(true);
@@ -28,26 +74,25 @@ export default function AuthForm({
     setNotice("");
     const f = new FormData(e.currentTarget);
     try {
-      const email = String(f.get("email") || "")
+      const address = String(f.get("email") || "")
           .trim()
           .toLowerCase(),
         password = String(f.get("password") || ""),
         code = String(f.get("code") || "");
       let path = "/api/auth/login";
       let body: Record<string, string> = {
-        email,
+        email: address,
         password,
         ...(code ? { code } : {}),
         website: String(f.get("website") || ""),
       };
-      if (mode !== "reset" && mode !== "verify")
-        z.string().email().max(254).parse(email);
+      if (mode !== "reset" && mode !== "verify") email.parse(address);
       if (mode === "admin") path = "/api/admin/auth/login";
       if (mode === "register") {
-        z.string().min(12).max(72).parse(password);
+        newPassword.parse(password);
         path = "/api/auth/register";
         body = {
-          email,
+          email: address,
           password,
           name: String(f.get("name") || ""),
           website: body.website,
@@ -55,11 +100,15 @@ export default function AuthForm({
       }
       if (mode === "forgot") {
         path = "/api/auth/forgot-password";
-        body = { email, website: String(f.get("website") || "") };
+        body = { email: address, website: String(f.get("website") || "") };
       }
       if (mode === "reset" || mode === "verify") {
         const token =
           new URLSearchParams(window.location.hash.slice(1)).get("token") || "";
+        if (!token)
+          throw new Error(
+            "This link is incomplete. Open the link from your email again.",
+          );
         path =
           mode === "reset"
             ? "/api/auth/reset-password"
@@ -73,7 +122,7 @@ export default function AuthForm({
                 ...(code ? { code } : {}),
               }
             : { token };
-        if (mode === "reset") z.string().min(12).max(72).parse(password);
+        if (mode === "reset") newPassword.parse(password);
       }
       if (["login", "admin", "register", "forgot", "reset"].includes(mode))
         body.turnstileToken = String(f.get("turnstileToken") || "");
@@ -86,11 +135,14 @@ export default function AuthForm({
         window.location.assign(
           mode === "admin" ? "/admin/dashboard" : "/dashboard",
         );
-      } else setNotice(data.message);
+      } else {
+        setNotice(friendly(data.message));
+        setDone(true);
+      }
     } catch (e) {
       setError(
         e instanceof z.ZodError
-          ? e.issues.map((x) => x.message).join("; ")
+          ? e.issues.map((x) => x.message).join(" ")
           : message(e),
       );
     } finally {
@@ -98,40 +150,116 @@ export default function AuthForm({
       window.turnstile?.reset();
     }
   }
-  return (
-    <main className="auth-page">
-      <section className="auth-card">
-        <Link href="/" className="brand">
-          Standup<span>Bot</span>
-        </Link>
-        <p className="eyebrow">A CALMER WAY TO WORK TOGETHER</p>
-        <h1>{title}</h1>
-        <p className="muted">
-          Share progress, surface blockers, and keep your team in sync.
+
+  const signIn = mode === "login" || mode === "admin";
+  let footer: ReactNode;
+  if (mode === "login")
+    footer = (
+      <>
+        <p>
+          New to Daybrief? <Link href="/register">Create an account</Link>
         </p>
-        <form onSubmit={submit}>
-          {mode === "register" && (
-            <label>
-              Name
-              <input name="name" required maxLength={100} autoComplete="name" />
-            </label>
-          )}
-          {!["reset", "verify"].includes(mode) && (
-            <label>
-              Email
+        <p>
+          Team admin? <Link href="/admin/login">Use admin sign-in</Link>
+        </p>
+        <p>
+          Lost your authenticator?{" "}
+          <Link href="/recover-mfa">Recover your account</Link>
+        </p>
+      </>
+    );
+  else if (mode === "admin")
+    footer = (
+      <>
+        <p>
+          Not an admin? <Link href="/login">Use member sign-in</Link>
+        </p>
+        <p>
+          Lost your authenticator?{" "}
+          <Link href="/recover-mfa">Recover your account</Link>
+        </p>
+      </>
+    );
+  else if (mode === "register")
+    footer = (
+      <p>
+        Already have an account? <Link href="/login">Sign in</Link>
+      </p>
+    );
+  else
+    footer = (
+      <p>
+        <Link href="/login">Back to sign in</Link>
+      </p>
+    );
+
+  // After a successful reset or verification there's nothing left to fill in.
+  if (done && (mode === "reset" || mode === "verify"))
+    return (
+      <AuthLayout title={mode === "reset" ? "Password updated" : "Email confirmed"}>
+        <div className="grid gap-5 mt-6">
+          {notice && <Alert tone="success">{notice}</Alert>}
+          <Link className="btn btn-primary btn-block" href="/login">
+            Sign in
+          </Link>
+        </div>
+      </AuthLayout>
+    );
+
+  return (
+    <AuthLayout title={c.title} lede={c.lede} footer={footer}>
+      <form className="form" onSubmit={submit}>
+        {mode === "register" && (
+          <Field label="Name">
+            {({ id }) => (
               <input
+                id={id}
+                className="input"
+                name="name"
+                required
+                maxLength={100}
+                autoComplete="name"
+              />
+            )}
+          </Field>
+        )}
+        {!["reset", "verify"].includes(mode) && (
+          <Field label="Email">
+            {({ id }) => (
+              <input
+                id={id}
+                className="input"
                 type="email"
                 name="email"
                 required
                 maxLength={254}
                 autoComplete="email"
+                placeholder="name@company.com"
               />
-            </label>
-          )}
-          {!["forgot", "verify"].includes(mode) && (
-            <label>
-              Password
+            )}
+          </Field>
+        )}
+        {!["forgot", "verify"].includes(mode) && (
+          <Field
+            label={mode === "reset" ? "New password" : "Password"}
+            hint={
+              ["register", "reset"].includes(mode)
+                ? "At least 12 characters. A short phrase works well."
+                : undefined
+            }
+            aside={
+              signIn ? (
+                <Link className="text-link" href="/forgot-password">
+                  Forgot password?
+                </Link>
+              ) : undefined
+            }
+          >
+            {({ id, hintId }) => (
               <input
+                id={id}
+                aria-describedby={hintId}
+                className="input"
                 name="password"
                 type="password"
                 required
@@ -143,54 +271,53 @@ export default function AuthForm({
                     : "current-password"
                 }
               />
-            </label>
-          )}
-          {["login", "admin", "reset"].includes(mode) && (
-            <label>
-              Authenticator code <span className="muted">(if enabled)</span>
+            )}
+          </Field>
+        )}
+        {["login", "admin", "reset"].includes(mode) && (
+          <Field
+            label="Authenticator code"
+            optional
+            hint="Only if you've turned on two-step verification."
+          >
+            {({ id, hintId }) => (
               <input
+                id={id}
+                aria-describedby={hintId}
+                className="input input-code"
                 name="code"
                 inputMode="numeric"
                 pattern="[0-9]{6}"
                 maxLength={6}
                 autoComplete="one-time-code"
+                placeholder="123456"
               />
-            </label>
-          )}
-          <label className="honeypot" aria-hidden="true">
-            Leave empty
-            <input name="website" tabIndex={-1} autoComplete="off" />
-          </label>
-          {error && (
-            <p className="error" role="alert">
-              {error}
-            </p>
-          )}
-          {notice && (
-            <p className="notice" role="status">
-              {notice}
-            </p>
-          )}
-          {["login", "admin", "register", "forgot", "reset"].includes(mode) && (
-            <BotCheck />
-          )}
-          <button disabled={busy}>
-            {busy
-              ? "Please wait…"
-              : mode === "verify"
-                ? "Verify email"
-                : "Continue"}
-          </button>
-        </form>
-        {(mode === "login" || mode === "admin") && <PasskeyLogin />}
-        <div className="auth-links">
-          <Link href="/login">Member sign in</Link>
-          <Link href="/admin/login">Admin sign in</Link>
-          <Link href="/register">Register</Link>
-          <Link href="/forgot-password">Forgot password?</Link>
-          <Link href="/recover-mfa">Lost your authenticator?</Link>
-        </div>
-      </section>
-    </main>
+            )}
+          </Field>
+        )}
+        <label className="honeypot" aria-hidden="true">
+          Leave empty
+          <input name="website" tabIndex={-1} autoComplete="off" />
+        </label>
+        {error && <Alert>{error}</Alert>}
+        {notice && <Alert tone="success">{notice}</Alert>}
+        {["login", "admin", "register", "forgot", "reset"].includes(mode) && (
+          <BotCheck />
+        )}
+        <SubmitButton
+          className="btn btn-primary btn-block"
+          busy={busy}
+          busyLabel={c.busy}
+        >
+          {c.button}
+        </SubmitButton>
+      </form>
+      {signIn && (
+        <>
+          <p className="auth-alt">or</p>
+          <PasskeyLogin />
+        </>
+      )}
+    </AuthLayout>
   );
 }

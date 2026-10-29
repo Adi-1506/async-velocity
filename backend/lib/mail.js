@@ -43,12 +43,12 @@ async function sendAction(user, purpose) {
       to: user.email,
       subject:
         purpose === "reset"
-          ? "Reset your StandupBot password"
-          : "Verify your StandupBot email",
+          ? "Reset your Daybrief password"
+          : "Confirm your email for Daybrief",
       text:
-        "Open this link within 30 minutes: " +
+        "Use this link within 30 minutes: " +
         url.toString() +
-        "\nIf you did not request this, ignore this email.",
+        "\nIf you didn't ask for this, you can ignore this email.",
     });
   } catch (e) {
     await ActionToken.deleteOne({ _id: row._id });
