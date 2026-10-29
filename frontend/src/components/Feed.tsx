@@ -1,56 +1,106 @@
 "use client";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { io } from "socket.io-client";
+import {
+  ArrowRight,
+  CircleAlert,
+  CircleCheck,
+  ChevronLeft,
+  ChevronRight,
+  Inbox,
+  PenLine,
+  Search,
+  SearchX,
+} from "lucide-react";
 import AppShell from "./AppShell";
+import CheckInEntry, { hasBlocker } from "./CheckInEntry";
+import { Alert, Empty, FeedSkeleton, Pager } from "./ui";
 import { useTeam } from "@/context/TeamContext";
-import { api, API, message, localDay } from "@/lib/api";
+import {
+  api,
+  API,
+  message,
+  localDay,
+  shiftDay,
+  formatDay,
+  formatTime,
+} from "@/lib/api";
 import { Standup } from "@/types";
-export default function Feed({ mine = false }: { mine?: boolean }) {
+
+const PAGE = 25;
+
+export default function Feed() {
   const { activeTeam, user } = useTeam();
   const [rows, setRows] = useState<Standup[]>([]),
     [day, setDay] = useState(""),
     [query, setQuery] = useState(""),
     [page, setPage] = useState(1),
     [error, setError] = useState(""),
-    [busy, setBusy] = useState(false),
-    [revision, setRevision] = useState(0);
+    [loadedKey, setLoadedKey] = useState(""),
+    [revision, setRevision] = useState(0),
+    [mine, setMine] = useState<Standup | null | undefined>(undefined);
+
+  const today = activeTeam ? localDay(activeTeam.timezone) : "";
+  const date = day || today;
+  const searching = query.trim().length > 0;
+  const key = [activeTeam?._id, date, query, page].join("|");
+  const loading = loadedKey !== key;
+
   useEffect(() => {
     let live = true;
     if (!activeTeam) return;
-    const date = day || localDay(activeTeam.timezone);
     const params = new URLSearchParams({
       teamId: activeTeam._id,
       date,
       page: String(page),
-      limit: "25",
+      limit: String(PAGE),
     });
-    if (query) params.set("q", query);
-    const path = mine
-      ? "/api/standups/mine?" + params
-      : query
-        ? "/api/standups/search?" + params
-        : "/api/standups/team/" + activeTeam._id + "?" + params;
+    if (query.trim()) params.set("q", query.trim());
+    const path = query.trim()
+      ? "/api/standups/search?" + params
+      : "/api/standups/team/" + activeTeam._id + "?" + params;
     const timer = setTimeout(() => {
-      setBusy(true);
       api<Standup[]>(path)
         .then((data) => {
-          if (live) {
-            setRows(data);
-            setError("");
-          }
+          if (!live) return;
+          setRows(data);
+          setError("");
         })
         .catch((e) => {
           if (live) setError(message(e));
         })
         .finally(() => {
-          if (live) setBusy(false);
+          if (live) setLoadedKey(key);
         });
     }, 200);
     return () => {
       live = false;
       clearTimeout(timer);
     };
-  }, [activeTeam, day, query, page, mine, revision]);
+  }, [activeTeam, date, query, page, revision, key]);
+
+  // Has the signed-in person already checked in today?
+  useEffect(() => {
+    let live = true;
+    if (!activeTeam || !user) return;
+    const params = new URLSearchParams({
+      date: localDay(activeTeam.timezone),
+      user: user._id,
+      limit: "1",
+    });
+    api<Standup[]>("/api/standups/team/" + activeTeam._id + "?" + params)
+      .then((d) => {
+        if (live) setMine(d[0] || null);
+      })
+      .catch(() => {
+        if (live) setMine(undefined);
+      });
+    return () => {
+      live = false;
+    };
+  }, [activeTeam, user, revision]);
+
   useEffect(() => {
     if (!activeTeam) return;
     const socket = io(process.env.NEXT_PUBLIC_SOCKET_URL || API, {
@@ -62,113 +112,186 @@ export default function Feed({ mine = false }: { mine?: boolean }) {
       socket.disconnect();
     };
   }, [activeTeam]);
-  async function resolve(row: Standup) {
-    try {
-      await api("/api/standups/" + row._id + "/blocker", {
-        method: "PATCH",
-        body: JSON.stringify({
-          status: row.blockerStatus === "resolved" ? "open" : "resolved",
-        }),
-      });
-      setRevision((r) => r + 1);
-    } catch (e) {
-      setError(message(e));
-    }
-  }
+
+  const isToday = date === today;
+  const openBlockers = rows.filter(
+    (r) => hasBlocker(r) && r.blockerStatus !== "resolved",
+  );
+  const go = (d: string) => {
+    setDay(d === today ? "" : d);
+    setPage(1);
+  };
+
+  const actions =
+    mine === undefined ? null : mine ? (
+      <span className="pill pill-ok">
+        <CircleCheck size={13} aria-hidden="true" />
+        You checked in at {formatTime(mine.date, activeTeam?.timezone)}
+      </span>
+    ) : (
+      <Link className="btn btn-primary max-[899px]:hidden" href="/check-in">
+        <PenLine size={16} aria-hidden="true" />
+        Post a check-in
+      </Link>
+    );
+
   return (
-    <AppShell title={mine ? "My check-in history" : "Team feed"}>
-      {!mine && (
-        <section className="toolbar">
-          <label>
-            Date
+    <AppShell
+      title="Team feed"
+      description={
+        activeTeam &&
+        (searching
+          ? "Searching every check-in in " + activeTeam.name
+          : (isToday ? "Today, " : "") + formatDay(date) + " · " + activeTeam.name)
+      }
+      actions={actions}
+    >
+      <div className="toolbar">
+        {!searching && (
+          <div className="day-nav" role="group" aria-label="Choose a day">
+            <button
+              className="btn btn-secondary btn-icon"
+              aria-label="Previous day"
+              onClick={() => go(shiftDay(date, -1))}
+            >
+              <ChevronLeft size={18} aria-hidden="true" />
+            </button>
+            <label className="sr-only" htmlFor="feed-date">
+              Date
+            </label>
             <input
+              id="feed-date"
+              className="input"
               type="date"
-              value={day || (activeTeam ? localDay(activeTeam.timezone) : "")}
-              onChange={(e) => {
-                setDay(e.target.value);
-                setPage(1);
-              }}
+              value={date}
+              max={today}
+              onChange={(e) => e.target.value && go(e.target.value)}
             />
+            <button
+              className="btn btn-secondary btn-icon"
+              aria-label="Next day"
+              disabled={isToday}
+              onClick={() => go(shiftDay(date, 1))}
+            >
+              <ChevronRight size={18} aria-hidden="true" />
+            </button>
+            {!isToday && (
+              <button className="btn btn-ghost btn-sm" onClick={() => go(today)}>
+                Back to today
+              </button>
+            )}
+          </div>
+        )}
+        <div className="grow input-with-icon">
+          <Search size={16} aria-hidden="true" />
+          <label className="sr-only" htmlFor="feed-search">
+            Search check-ins
           </label>
-          <label>
-            Search
-            <input
-              placeholder="Search team updates"
-              value={query}
-              maxLength={100}
-              onChange={(e) => {
-                setQuery(e.target.value);
-                setPage(1);
-              }}
-            />
-          </label>
-        </section>
-      )}
+          <input
+            id="feed-search"
+            className="input"
+            type="search"
+            placeholder="Search all check-ins"
+            value={query}
+            maxLength={100}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setPage(1);
+            }}
+          />
+        </div>
+      </div>
+
       {error && (
-        <p className="error" role="alert">
-          {error}
-        </p>
-      )}
-      {busy ? (
-        <p className="card">Loading updates…</p>
-      ) : rows.length === 0 ? (
-        <p className="card">
-          No updates yet. Your next check-in will appear here.
-        </p>
-      ) : (
-        <div className="feed-grid">
-          {rows.map((row) => (
-            <article key={row._id} className="card">
-              <div className="row">
-                <h2>{row.user?.name || "Former member"}</h2>
-                <span className="badge">{row.mood}</span>
-              </div>
-              <p className="muted">
-                {new Date(row.date).toLocaleString()}{" "}
-                {row.isLate ? "· After scheduled time" : ""}
-              </p>
-              <h3>Previously</h3>
-              <p className="user-text">{row.yesterday}</p>
-              <h3>Up next</h3>
-              <p className="user-text">{row.today}</p>
-              {row.blockers && row.blockers.trim().toLowerCase() !== "none" && (
-                <div className="blocker">
-                  <h3>Blocker · {row.blockerStatus || "open"}</h3>
-                  <p className="user-text">{row.blockers}</p>
-                  {(row.user?._id === user?._id ||
-                    user?.role === "superadmin" ||
-                    activeTeam?.admins.some(
-                      (a) => (typeof a === "string" ? a : a._id) === user?._id,
-                    )) && (
-                    <button className="secondary" onClick={() => resolve(row)}>
-                      {row.blockerStatus === "resolved"
-                        ? "Reopen"
-                        : "Mark resolved"}
-                    </button>
-                  )}
-                </div>
-              )}
-            </article>
-          ))}
+        <div className="mb-4">
+          <Alert>{error}</Alert>
         </div>
       )}
-      <div className="pagination">
-        <button
-          className="secondary"
-          disabled={page === 1 || busy}
-          onClick={() => setPage((p) => p - 1)}
-        >
-          Previous
-        </button>
-        <span>Page {page}</span>
-        <button
-          className="secondary"
-          disabled={rows.length < 25 || busy}
-          onClick={() => setPage((p) => p + 1)}
-        >
-          Next
-        </button>
-      </div>
+
+      {loading &&
+      (rows.length === 0 || !loadedKey.startsWith(activeTeam?._id + "|")) ? (
+        <FeedSkeleton />
+      ) : rows.length === 0 ? (
+        searching ? (
+          <Empty icon={SearchX} title={"Nothing matches “" + query.trim() + "”"}>
+            Try a different word, or clear the search to go back to the daily
+            feed.
+          </Empty>
+        ) : isToday ? (
+          <Empty icon={Inbox} title="No check-ins yet today">
+            Updates show up here as soon as people post them.
+          </Empty>
+        ) : (
+          <Empty icon={Inbox} title={"No check-ins on " + formatDay(date)}>
+            Nobody posted that day. Use the arrows to look at another day.
+          </Empty>
+        )
+      ) : (
+        <div aria-busy={loading}>
+          <p className="feed-summary" aria-live="polite">
+            <span>
+              <strong>{rows.length}</strong>{" "}
+              {searching
+                ? rows.length === 1
+                  ? "match"
+                  : "matches"
+                : rows.length === 1
+                  ? "check-in"
+                  : "check-ins"}
+              {rows.length === PAGE && " on this page"}
+            </span>
+            {openBlockers.length > 0 && (
+              <span className="rust">
+                <strong className="rust">{openBlockers.length}</strong> open{" "}
+                {openBlockers.length === 1 ? "blocker" : "blockers"}
+              </span>
+            )}
+          </p>
+
+          {openBlockers.length > 0 && !searching && (
+            <section className="help-list" aria-labelledby="needs-help">
+              <h2 id="needs-help">
+                <CircleAlert size={16} aria-hidden="true" />
+                Needs help
+              </h2>
+              <ul>
+                {openBlockers.map((r) => (
+                  <li key={r._id}>
+                    <a href={"#checkin-" + r._id}>
+                      <span className="who">
+                        {r.user?.name || "Former member"}
+                      </span>
+                      <span className="what">{r.blockers}</span>
+                      <ArrowRight size={15} aria-hidden="true" />
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
+          <ul className="feed" aria-label="Check-ins">
+            {rows.map((row) => (
+              <CheckInEntry
+                key={row._id}
+                row={row}
+                team={activeTeam}
+                user={user}
+                showDate={searching}
+                onChange={() => setRevision((r) => r + 1)}
+                onError={setError}
+              />
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <Pager
+        page={page}
+        hasNext={rows.length >= PAGE}
+        busy={loading}
+        onChange={setPage}
+      />
     </AppShell>
   );
 }

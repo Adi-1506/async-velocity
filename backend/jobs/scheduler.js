@@ -53,8 +53,12 @@ async function processTeam(team, io, now = new Date()) {
         type,
         [type, team._id, user, key].join(":"),
         missed
-          ? "Your " + key + " check-in for " + team.name + " is missing."
-          : "It is time to check in for " + team.name + ".",
+          ? "You didn't check in for " +
+              team.name +
+              " on " +
+              day.format("dddd, D MMMM") +
+              "."
+          : "Time to check in for " + team.name + ".",
       );
     }
   }
@@ -133,9 +137,9 @@ async function processTeam(team, io, now = new Date()) {
         team._id,
         "digest_ready",
         "digest:" + periodKey + ":" + user,
-        "Your " +
+        "The " +
           team.digestFrequency +
-          " digest for " +
+          " summary for " +
           team.name +
           " is ready.",
       );

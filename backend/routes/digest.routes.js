@@ -10,7 +10,7 @@ router.get("/team/:teamId", member, async (req, res) => {
   const { skip, limit } = pagination(req);
   res.json(
     await Digest.find({ team: req.team._id })
-      .sort({ createdAt: -1 })
+      .sort({ "period.from": -1, _id: -1 })
       .skip(skip)
       .limit(limit),
   );

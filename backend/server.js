@@ -37,7 +37,7 @@ async function start() {
   attach(io);
   const job = startJobs(io);
   server.listen(Number(process.env.PORT || 5000), "0.0.0.0", () =>
-    console.log("StandupBot API is ready"),
+    console.log("Daybrief API is ready"),
   );
   const shutdown = () => {
     job.stop();
